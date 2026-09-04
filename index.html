@@ -1,0 +1,519 @@
+<!DOCTYPE html>
+<html lang="bn">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Life & Work Tracker (24 Hours)</title>
+  <meta name="description" content="Zero-friction real-time 24-hour daily time, parenting and income tracker">
+  <meta name="theme-color" content="#0f172a">
+  <link rel="manifest" href="manifest.json">
+  <link rel="stylesheet" href="style.css">
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Firebase SDKs -->
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+</head>
+<body class="bg-slate-950 text-slate-100 flex flex-col min-h-screen antialiased select-none pb-20">
+
+  <!-- Sticky Top Header -->
+  <header class="sticky-header bg-slate-900/90 border-b border-slate-800 px-4 py-3 flex items-center justify-between shadow-lg">
+    <div class="flex items-center space-x-2">
+      <span class="text-2xl">⚡</span>
+      <div>
+        <h1 class="text-base font-bold leading-tight tracking-wide">লাইফ ট্র্যাকার</h1>
+        <p class="text-xs text-slate-400" id="currentDateDisplay">আজকের দিন</p>
+      </div>
+    </div>
+    <div class="flex items-center space-x-3">
+      <button id="syncStatusBadge" onclick="switchTab('settings')" class="flex items-center space-x-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-slate-800 border border-slate-700 hover:bg-slate-700 transition">
+        <span class="w-2 h-2 rounded-full bg-amber-400" id="syncIndicatorDot"></span>
+        <span id="syncStatusText" class="text-slate-300">লোকাল মোড</span>
+      </button>
+    </div>
+  </header>
+
+  <!-- LIVE ACTIVE TASK BANNER -->
+  <div id="activeTaskBanner" class="hidden bg-gradient-to-r from-blue-900/60 to-indigo-900/60 border-b border-blue-500/30 px-4 py-3.5 shadow-md">
+    <div class="max-w-xl mx-auto flex items-center justify-between gap-2.5">
+      <div class="flex items-center space-x-3 min-w-0">
+        <div class="relative flex-shrink-0">
+          <span class="w-3.5 h-3.5 rounded-full bg-emerald-400 block"></span>
+          <span class="w-3.5 h-3.5 rounded-full bg-emerald-400 absolute top-0 left-0 pulse-indicator"></span>
+        </div>
+        <div class="truncate">
+          <div class="flex items-center space-x-2">
+            <span id="activeContextBadge" class="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-300 font-semibold">দোকান</span>
+            <span id="activeTaskName" class="text-sm font-semibold text-white truncate">মিউটেশন আবেদন</span>
+          </div>
+          <div class="text-xs text-slate-300 mt-0.5 flex items-center space-x-2 font-mono">
+            <span>চলমান:</span>
+            <span id="activeTimerDisplay" class="font-bold text-emerald-400 text-sm">00:00:00</span>
+          </div>
+        </div>
+      </div>
+      <div class="flex items-center space-x-1.5 flex-shrink-0">
+        <button onclick="promptSplitActiveTask()" title="সময় ভাগ করুন" class="bg-indigo-600 hover:bg-indigo-500 text-white font-medium text-xs px-2.5 py-2 rounded-lg shadow flex items-center space-x-1 active:scale-95 transition">
+          <span>✂️</span>
+          <span class="hidden sm:inline">ভাগ করুন</span>
+        </button>
+        <button onclick="promptStopActiveTask()" class="bg-rose-600 hover:bg-rose-500 text-white font-medium text-xs px-3.5 py-2 rounded-lg shadow-lg flex items-center space-x-1 active:scale-95 transition">
+          <span>⏹️</span>
+          <span>শেষ</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MAIN CONTAINER -->
+  <main class="flex-1 max-w-xl w-full mx-auto p-4 space-y-4">
+
+    <!-- TAB 1: TRACKER VIEW -->
+    <section id="trackerView" class="space-y-4">
+      
+      <!-- 24-HOUR TIMELINE OVERVIEW CARD -->
+      <div class="bg-slate-900 border border-slate-800 p-3 rounded-xl space-y-2">
+        <div class="flex items-center justify-between text-xs">
+          <span class="font-semibold text-slate-300 flex items-center space-x-1.5">
+            <span>🕒</span>
+            <span>২৪ ঘণ্টার দিনের হিসাব</span>
+          </span>
+          <span class="text-[11px] font-mono text-slate-400" id="dayTimelineSummary">হিসাব হচ্ছে...</span>
+        </div>
+        
+        <!-- 24h Bar -->
+        <div class="w-full h-3.5 bg-slate-950 rounded-full overflow-hidden flex border border-slate-800" id="dayTimelineBar">
+          <!-- Dynamic segments injected by JS -->
+        </div>
+
+        <div class="flex justify-between text-[10px] text-slate-500 font-mono px-0.5">
+          <span>00:00 (রাত)</span>
+          <span>06:00 (সকাল)</span>
+          <span>12:00 (দুপুর)</span>
+          <span>18:00 (সন্ধ্যা)</span>
+          <span>24:00 (রাত)</span>
+        </div>
+      </div>
+
+      <!-- UNTRACKED GAP ALERT BANNER (If gap >= 15 mins) -->
+      <div id="gapAlertCard" class="hidden p-3.5 bg-gradient-to-r from-amber-950/60 to-orange-950/40 border border-amber-500/40 rounded-xl space-y-2.5 shadow-lg">
+        <div class="flex items-center justify-between">
+          <span class="text-xs font-semibold text-amber-300 flex items-center space-x-1.5">
+            <span>💡</span>
+            <span id="gapAlertTitle">ফাঁকা সময়ের হিসাব মেলান</span>
+          </span>
+          <button onclick="dismissGapAlert()" class="text-slate-400 hover:text-white text-xs px-1.5 py-0.5 rounded bg-slate-800">✕ স্কিপ</button>
+        </div>
+        <p class="text-xs text-slate-300" id="gapAlertSubtitle">এই ফাঁকা সময়ে আপনি কী করছিলেন? এক ট্যাপে যুক্ত করুন:</p>
+        <div class="flex flex-wrap gap-1.5" id="gapQuickChips">
+          <!-- Quick action buttons rendered here -->
+        </div>
+      </div>
+
+      <!-- Context Selector Grid (২ লাইনে ৮টি ক্যাটাগরি সম্পূর্ণ দৃশ্যমান) -->
+      <div class="grid grid-cols-4 gap-1.5 p-1.5 bg-slate-900 border border-slate-800 rounded-2xl shadow-inner select-none" id="contextTabsContainer">
+        <!-- Dynamic Context Buttons rendered by JS -->
+      </div>
+
+      <!-- Quick Subtasks Grid -->
+      <div>
+        <div class="flex items-center justify-between mb-2 px-1">
+          <h2 class="text-xs font-semibold text-slate-400 uppercase tracking-wider" id="activeContextTitle">কাজের তালিকা</h2>
+          <button onclick="openAddSubtaskModal()" class="text-xs text-blue-400 hover:text-blue-300 flex items-center space-x-1 py-0.5 px-2 rounded bg-blue-950/50 border border-blue-800/40">
+            <span>+ নতুন কাজ</span>
+          </button>
+        </div>
+
+        <div id="subtasksGrid" class="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+          <!-- Subtasks rendered dynamically by JS -->
+        </div>
+      </div>
+
+      <!-- Recent Logs Today (With Edit & Manual Add options) -->
+      <div class="pt-2">
+        <div class="flex items-center justify-between mb-2 px-1">
+          <h3 class="text-xs font-semibold text-slate-400">আজকের সাম্প্রতিক কাজ</h3>
+          <div class="flex items-center space-x-2">
+            <button onclick="openManualLogModal()" class="text-xs text-emerald-400 hover:text-emerald-300 flex items-center space-x-1 font-medium bg-emerald-950/40 px-2 py-0.5 rounded border border-emerald-800/40">
+              <span>+ পেছনের কাজ</span>
+            </button>
+            <span class="text-slate-600">•</span>
+            <button onclick="switchTab('analytics')" class="text-xs text-blue-400 hover:underline">সবগুলো &rarr;</button>
+          </div>
+        </div>
+        <div id="recentLogsContainer" class="space-y-2">
+          <!-- Quick logs rendered here with Edit pencil icon -->
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB 2: ANALYTICS & REPORTS VIEW -->
+    <section id="analyticsView" class="hidden space-y-4">
+      <div class="flex items-center justify-between">
+        <h2 class="text-lg font-bold text-white">আজকের পূর্ণাঙ্গ হিসাব</h2>
+        <div class="flex items-center space-x-2">
+          <button onclick="openManualLogModal()" class="text-xs px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-medium">
+            + কাজ যোগ
+          </button>
+          <span class="text-xs px-2.5 py-1 rounded-full bg-slate-800 text-slate-300 font-mono" id="analyticsDateBadge">২০২৬-০৯-০৪</span>
+        </div>
+      </div>
+
+      <!-- Summary Metrics Cards -->
+      <div class="grid grid-cols-2 gap-3">
+        <div class="bg-slate-900 border border-slate-800 p-3.5 rounded-xl">
+          <p class="text-xs text-slate-400">মোট ট্র্যাকড সময়</p>
+          <p class="text-xl font-bold text-white mt-1 font-mono" id="totalTrackedTime">0 ঘণ্টা 0 মি</p>
+          <p class="text-[11px] text-blue-400 mt-1" id="deepWorkRatio">ডিপ ওয়ার্ক: 0%</p>
+        </div>
+        <div class="bg-slate-900 border border-slate-800 p-3.5 rounded-xl">
+          <p class="text-xs text-slate-400">আজকের মোট ইনকাম</p>
+          <p class="text-xl font-bold text-emerald-400 mt-1 font-mono" id="totalIncome">৳ 0</p>
+          <p class="text-[11px] text-slate-400 mt-1" id="incomeEntriesCount">0 টি এন্ট্রি</p>
+        </div>
+      </div>
+
+      <!-- Category Breakdown Progress -->
+      <div class="bg-slate-900 border border-slate-800 p-3.5 rounded-xl space-y-2.5">
+        <h3 class="text-xs font-semibold text-slate-300">ক্যাটাগরি ভিত্তিক সময়</h3>
+        <div id="categoryBreakdownList" class="space-y-2">
+          <!-- Category bars rendered here -->
+        </div>
+      </div>
+
+      <!-- Full Timeline Log -->
+      <div class="bg-slate-900 border border-slate-800 p-3.5 rounded-xl space-y-3">
+        <div class="flex items-center justify-between">
+          <h3 class="text-xs font-semibold text-slate-300">আজকের পূর্ণাঙ্গ টাইমলাইন</h3>
+          <button onclick="exportTodayLogsCSV()" class="text-xs text-slate-400 hover:text-white">CSV এক্সপোর্ট</button>
+        </div>
+        <div id="fullTimelineList" class="space-y-2.5 divide-y divide-slate-800/60">
+          <!-- Full logs rendered here -->
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB 3: SETTINGS & CLOUD SYNC VIEW -->
+    <section id="settingsView" class="hidden space-y-4">
+      <h2 class="text-lg font-bold text-white">সেটিংস ও ক্লাউড সিঙ্ক</h2>
+
+      <!-- Firebase Cloud Sync Card -->
+      <div class="bg-slate-900 border border-slate-800 p-4 rounded-xl space-y-3">
+        <div class="flex items-center space-x-2">
+          <span class="text-xl">☁️</span>
+          <div>
+            <h3 class="text-sm font-semibold text-white">পিসি ও মোবাইল রিয়েল-টাইম সিঙ্ক</h3>
+            <p class="text-xs text-slate-400">গুগল ফায়ারবেস (Firebase) ফ্রি ডাটাবেজ লিংক</p>
+          </div>
+        </div>
+
+        <div class="space-y-2 text-xs">
+          <p class="text-slate-300 leading-relaxed">
+            Firebase Realtime Database কনফিগ নিচে স্বয়ংক্রিয়ভাবে সংরক্ষিত রয়েছে।
+          </p>
+          <textarea id="firebaseConfigInput" rows="5" placeholder='{
+  "apiKey": "...",
+  "databaseURL": "https://...firebaseio.com",
+  "projectId": "..."
+}' class="w-full p-2.5 bg-slate-950 border border-slate-700 rounded-lg text-xs font-mono text-emerald-300 focus:outline-none focus:border-blue-500"></textarea>
+          
+          <div class="flex space-x-2 pt-1">
+            <button onclick="saveFirebaseConfig()" class="flex-1 bg-blue-600 hover:bg-blue-500 text-white font-medium py-2 rounded-lg transition">
+              ক্লাউড সিঙ্ক চালু করুন
+            </button>
+            <button onclick="disconnectFirebase()" class="px-3 bg-slate-800 hover:bg-slate-700 text-slate-300 py-2 rounded-lg transition">
+              রিসেট
+            </button>
+          </div>
+          <div id="firebaseStatusFeedback" class="hidden p-2 rounded-lg bg-slate-950 border border-slate-800 text-xs font-medium"></div>
+        </div>
+      </div>
+
+      <!-- Manage Categories Card -->
+      <div class="bg-slate-900 border border-slate-800 p-4 rounded-xl space-y-3">
+        <div class="flex items-center justify-between">
+          <div class="flex items-center space-x-2">
+            <span class="text-xl">📁</span>
+            <div>
+              <h3 class="text-sm font-semibold text-white">কাজের ধরন ও ক্যাটাগরি ম্যানেজমেন্ট</h3>
+              <p class="text-xs text-slate-400">আপনার সুবিধা মতো যেকোনো টাস্ক বা ক্যাটাগরি সাজান</p>
+            </div>
+          </div>
+          <button onclick="resetCategoriesToDefault()" class="text-xs text-amber-400 hover:underline">রিসেট ডিফল্ট</button>
+        </div>
+
+        <div id="categoryManagerList" class="space-y-3 pt-2 text-xs">
+          <!-- Category and Subtask manager rendered by JS -->
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- MODAL 1: FINISH TASK & INCOME INPUT -->
+  <div id="taskCompleteModal" class="fixed inset-0 bg-black/75 z-50 flex items-center justify-center p-4 hidden backdrop-blur-sm">
+    <div class="bg-slate-900 border border-slate-700 w-full max-w-sm rounded-2xl p-5 shadow-2xl space-y-4">
+      <div class="flex items-center justify-between">
+        <h3 class="text-sm font-bold text-white flex items-center space-x-1.5">
+          <span>🎉</span>
+          <span id="modalFinishedTaskTitle">কাজ সম্পন্ন হয়েছে</span>
+        </h3>
+        <span id="modalFinishedDuration" class="text-xs font-mono font-bold text-emerald-400 px-2 py-0.5 rounded bg-emerald-950/60 border border-emerald-800/40">00:00</span>
+      </div>
+
+      <div class="space-y-3 text-xs">
+        <div>
+          <label class="block font-medium text-slate-300 mb-1">এই কাজে কোনো ইনকাম হয়েছে? (ঐচ্ছিক)</label>
+          <div class="relative">
+            <span class="absolute left-3 top-2.5 text-slate-400 font-bold">৳</span>
+            <input type="number" id="modalIncomeInput" placeholder="0 (টাকা না থাকলে খালি রাখুন)" class="w-full pl-8 pr-3 py-2 bg-slate-950 border border-slate-700 rounded-lg text-sm text-white font-mono focus:border-emerald-500 focus:outline-none">
+          </div>
+        </div>
+
+        <div>
+          <label class="block font-medium text-slate-300 mb-1">ছোট নোট (ঐচ্ছিক)</label>
+          <input type="text" id="modalNoteInput" placeholder="যেমন: রশিদ নং বা ক্লায়েন্টের নাম" class="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-lg text-xs text-white focus:border-blue-500 focus:outline-none">
+        </div>
+      </div>
+
+      <div class="flex space-x-2 pt-2">
+        <button onclick="saveFinishedTask(true)" class="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold py-2.5 rounded-xl text-xs shadow-lg active:scale-95 transition">
+          ✓ সেভ করুন
+        </button>
+        <button onclick="saveFinishedTask(false)" class="px-4 bg-slate-800 hover:bg-slate-700 text-slate-300 font-medium py-2.5 rounded-xl text-xs active:scale-95 transition">
+          স্কিপ
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL 2: ADD NEW SUBTASK MODAL -->
+  <div id="addSubtaskModal" class="fixed inset-0 bg-black/75 z-50 flex items-center justify-center p-4 hidden backdrop-blur-sm">
+    <div class="bg-slate-900 border border-slate-700 w-full max-w-sm rounded-2xl p-5 shadow-2xl space-y-4">
+      <div class="flex items-center justify-between">
+        <h3 class="text-sm font-bold text-white">নতুন কাজের ধরন যোগ করুন</h3>
+        <button onclick="closeAddSubtaskModal()" class="text-slate-400 hover:text-white text-lg">&times;</button>
+      </div>
+
+      <div class="space-y-3 text-xs">
+        <div>
+          <label class="block text-slate-300 mb-1">কাজের নাম</label>
+          <input type="text" id="newSubtaskName" placeholder="যেমন: জমির পর্চা তোলা" class="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-lg text-xs text-white focus:border-blue-500 focus:outline-none">
+        </div>
+        <div>
+          <label class="block text-slate-300 mb-1">আইকন / ইমোজি</label>
+          <input type="text" id="newSubtaskIcon" value="📌" class="w-16 px-3 py-2 text-center bg-slate-950 border border-slate-700 rounded-lg text-base text-white focus:border-blue-500 focus:outline-none">
+        </div>
+        <div>
+          <label class="block text-slate-300 mb-1">কাজের ধরন (Classification)</label>
+          <select id="newSubtaskType" class="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-lg text-xs text-white focus:border-blue-500 focus:outline-none">
+            <option value="deep_work">ডিপ ওয়ার্ক (গভীর মনোযোগের কাজ)</option>
+            <option value="shallow_work">শ্যালো ওয়ার্ক (দ্রুত বা সাধারণ কাজ)</option>
+            <option value="routine">দৈনন্দিন রুটিন / খাবার / গোছানো</option>
+            <option value="parenting">সন্তান ও পরিবার</option>
+            <option value="screentime">মোবাইল ও স্ক্রিন</option>
+            <option value="rest">ঘুম ও বিশ্রাম</option>
+            <option value="prayer">নামাজ ও ইবাদত</option>
+            <option value="communication">কাস্টমার ডিল / মিটিং</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="flex space-x-2 pt-2">
+        <button onclick="confirmAddSubtask()" class="flex-1 bg-blue-600 hover:bg-blue-500 text-white font-semibold py-2 rounded-xl text-xs transition">
+          যোগ করুন
+        </button>
+        <button onclick="closeAddSubtaskModal()" class="px-4 bg-slate-800 hover:bg-slate-700 text-slate-300 py-2 rounded-xl text-xs transition">
+          বাতিল
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL 3: SPLIT TASK MODAL (সময় ভাগ করে নেওয়া) -->
+  <div id="splitTaskModal" class="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4 hidden backdrop-blur-sm">
+    <div class="bg-slate-900 border border-slate-700 w-full max-w-sm rounded-2xl p-5 shadow-2xl space-y-4">
+      <div class="flex items-center justify-between">
+        <h3 class="text-sm font-bold text-white flex items-center space-x-1.5">
+          <span>✂️</span>
+          <span>সময় ভাগ করুন (Split Time)</span>
+        </h3>
+        <button onclick="closeSplitModal()" class="text-slate-400 hover:text-white text-lg">&times;</button>
+      </div>
+
+      <p class="text-xs text-slate-300">
+        মোট চলমান সময়: <span id="splitTotalDurationLabel" class="font-mono font-bold text-emerald-400">০ মিনিট</span>। এটি কেটে দুটি কাজে ভাগ করে দিন:
+      </p>
+
+      <div class="space-y-3 text-xs bg-slate-950 p-3 rounded-xl border border-slate-800">
+        <div class="text-slate-300 font-semibold border-b border-slate-800 pb-1 flex justify-between items-center">
+          <span id="splitPart1Name">১ম কাজ (বর্তমান কাজ)</span>
+        </div>
+        <div>
+          <label class="block text-[11px] text-slate-400 mb-1">প্রকৃত সময় (মিনিট):</label>
+          <input type="number" id="splitPart1Minutes" min="1" class="w-full px-3 py-1.5 bg-slate-900 border border-slate-700 rounded-lg text-sm text-white font-mono focus:border-blue-500 focus:outline-none" oninput="recalculateSplitRemainder()">
+        </div>
+      </div>
+
+      <div class="space-y-3 text-xs bg-slate-950 p-3 rounded-xl border border-slate-800">
+        <div class="text-slate-300 font-semibold border-b border-slate-800 pb-1 flex justify-between items-center">
+          <span>২য় কাজ (অবশিষ্ট সময়ের কাজ)</span>
+          <span id="splitPart2MinutesLabel" class="text-emerald-400 font-mono font-bold">০ মিনিট</span>
+        </div>
+        <div>
+          <label class="block text-[11px] text-slate-400 mb-1">ক্যাটাগরি নির্বাচন করুন:</label>
+          <select id="splitPart2CategorySelect" onchange="updateSplitSubtaskOptions()" class="w-full px-2.5 py-1.5 bg-slate-900 border border-slate-700 rounded-lg text-xs text-white focus:border-blue-500 focus:outline-none">
+            <!-- Injected by JS -->
+          </select>
+        </div>
+        <div>
+          <label class="block text-[11px] text-slate-400 mb-1">কাজের নাম:</label>
+          <select id="splitPart2SubtaskSelect" class="w-full px-2.5 py-1.5 bg-slate-900 border border-slate-700 rounded-lg text-xs text-white focus:border-blue-500 focus:outline-none">
+            <!-- Injected by JS -->
+          </select>
+        </div>
+      </div>
+
+      <div class="flex space-x-2 pt-1">
+        <button onclick="confirmSplitTask()" class="flex-1 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold py-2.5 rounded-xl text-xs transition active:scale-95">
+          ✓ ভাগ করে সেভ করুন
+        </button>
+        <button onclick="closeSplitModal()" class="px-3 bg-slate-800 hover:bg-slate-700 text-slate-300 py-2.5 rounded-xl text-xs transition">
+          বাতিল
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL 4: EDIT LOG MODAL (পূর্বের লগ সংশোধন বা ডিলিট) -->
+  <div id="editLogModal" class="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4 hidden backdrop-blur-sm">
+    <div class="bg-slate-900 border border-slate-700 w-full max-w-sm rounded-2xl p-5 shadow-2xl space-y-4">
+      <div class="flex items-center justify-between">
+        <h3 class="text-sm font-bold text-white flex items-center space-x-1.5">
+          <span>✏️</span>
+          <span>কাজের তথ্য সংশোধন</span>
+        </h3>
+        <button onclick="closeEditLogModal()" class="text-slate-400 hover:text-white text-lg">&times;</button>
+      </div>
+
+      <input type="hidden" id="editLogId">
+
+      <div class="space-y-3 text-xs">
+        <div>
+          <label class="block text-slate-300 mb-1">কাজের নাম</label>
+          <input type="text" id="editLogTaskName" class="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-lg text-xs text-white focus:border-blue-500 focus:outline-none">
+        </div>
+
+        <div class="grid grid-cols-2 gap-2">
+          <div>
+            <label class="block text-slate-300 mb-1">শুরুর সময়</label>
+            <input type="time" id="editLogStartTime" class="w-full px-2.5 py-1.5 bg-slate-950 border border-slate-700 rounded-lg text-xs text-white font-mono focus:border-blue-500 focus:outline-none">
+          </div>
+          <div>
+            <label class="block text-slate-300 mb-1">শেষের সময়</label>
+            <input type="time" id="editLogEndTime" class="w-full px-2.5 py-1.5 bg-slate-950 border border-slate-700 rounded-lg text-xs text-white font-mono focus:border-blue-500 focus:outline-none">
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-slate-300 mb-1">আয় / ইনকাম (টাকা)</label>
+          <input type="number" id="editLogIncome" class="w-full px-3 py-1.5 bg-slate-950 border border-slate-700 rounded-lg text-xs text-white font-mono focus:border-blue-500 focus:outline-none">
+        </div>
+
+        <div>
+          <label class="block text-slate-300 mb-1">নোট (ঐচ্ছিক)</label>
+          <input type="text" id="editLogNote" class="w-full px-3 py-1.5 bg-slate-950 border border-slate-700 rounded-lg text-xs text-white focus:border-blue-500 focus:outline-none">
+        </div>
+      </div>
+
+      <div class="flex space-x-2 pt-2">
+        <button onclick="confirmSaveEditedLog()" class="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold py-2.5 rounded-xl text-xs transition active:scale-95">
+          ✓ সংরক্ষণ করুন
+        </button>
+        <button onclick="confirmDeleteLog()" class="px-3 bg-rose-900/60 hover:bg-rose-700 text-rose-200 py-2.5 rounded-xl text-xs transition">
+          🗑️ ডিলিট
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL 5: MANUAL LOG MODAL (পেছনের মিসিং কাজ এন্ট্রি) -->
+  <div id="manualLogModal" class="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4 hidden backdrop-blur-sm">
+    <div class="bg-slate-900 border border-slate-700 w-full max-w-sm rounded-2xl p-5 shadow-2xl space-y-4">
+      <div class="flex items-center justify-between">
+        <h3 class="text-sm font-bold text-white flex items-center space-x-1.5">
+          <span>➕</span>
+          <span>পেছনের কাজ যোগ করুন</span>
+        </h3>
+        <button onclick="closeManualLogModal()" class="text-slate-400 hover:text-white text-lg">&times;</button>
+      </div>
+
+      <div class="space-y-3 text-xs">
+        <div>
+          <label class="block text-slate-300 mb-1">ক্যাটাগরি</label>
+          <select id="manualLogCatSelect" onchange="updateManualSubtaskOptions()" class="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-lg text-xs text-white focus:border-blue-500 focus:outline-none">
+            <!-- Rendered by JS -->
+          </select>
+        </div>
+
+        <div>
+          <label class="block text-slate-300 mb-1">কাজের ধরন / নাম</label>
+          <select id="manualLogSubtaskSelect" class="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-lg text-xs text-white focus:border-blue-500 focus:outline-none">
+            <!-- Rendered by JS -->
+          </select>
+        </div>
+
+        <div class="grid grid-cols-2 gap-2">
+          <div>
+            <label class="block text-slate-300 mb-1">শুরুর সময়</label>
+            <input type="time" id="manualLogStartTime" class="w-full px-2.5 py-1.5 bg-slate-950 border border-slate-700 rounded-lg text-xs text-white font-mono focus:border-blue-500 focus:outline-none">
+          </div>
+          <div>
+            <label class="block text-slate-300 mb-1">শেষের সময়</label>
+            <input type="time" id="manualLogEndTime" class="w-full px-2.5 py-1.5 bg-slate-950 border border-slate-700 rounded-lg text-xs text-white font-mono focus:border-blue-500 focus:outline-none">
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-slate-300 mb-1">আয় / ইনকাম (ঐচ্ছিক)</label>
+          <input type="number" id="manualLogIncome" placeholder="০" class="w-full px-3 py-1.5 bg-slate-950 border border-slate-700 rounded-lg text-xs text-white font-mono focus:border-blue-500 focus:outline-none">
+        </div>
+
+        <div>
+          <label class="block text-slate-300 mb-1">নোট (ঐচ্ছিক)</label>
+          <input type="text" id="manualLogNote" placeholder="যেমন: স্কুলে আনা-নেওয়া" class="w-full px-3 py-1.5 bg-slate-950 border border-slate-700 rounded-lg text-xs text-white focus:border-blue-500 focus:outline-none">
+        </div>
+      </div>
+
+      <div class="flex space-x-2 pt-2">
+        <button onclick="confirmSaveManualLog()" class="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold py-2.5 rounded-xl text-xs transition active:scale-95">
+          ✓ যোগ করুন
+        </button>
+        <button onclick="closeManualLogModal()" class="px-4 bg-slate-800 hover:bg-slate-700 text-slate-300 py-2.5 rounded-xl text-xs transition">
+          বাতিল
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- STICKY BOTTOM NAVIGATION BAR -->
+  <nav class="sticky-footer bg-slate-900/95 border-t border-slate-800 px-6 py-2 flex justify-around items-center text-xs shadow-2xl">
+    <button onclick="switchTab('tracker')" id="navTabTracker" class="flex flex-col items-center space-y-1 text-blue-400 font-semibold">
+      <span class="text-lg">⏱️</span>
+      <span>ট্র্যাকার</span>
+    </button>
+    <button onclick="switchTab('analytics')" id="navTabAnalytics" class="flex flex-col items-center space-y-1 text-slate-400 hover:text-slate-200">
+      <span class="text-lg">📊</span>
+      <span>অ্যানালাইসিস</span>
+    </button>
+    <button onclick="switchTab('settings')" id="navTabSettings" class="flex flex-col items-center space-y-1 text-slate-400 hover:text-slate-200">
+      <span class="text-lg">⚙️</span>
+      <span>সেটিংস ও সিঙ্ক</span>
+    </button>
+  </nav>
+
+  <!-- Scripts -->
+  <script src="categories.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
