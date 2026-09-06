@@ -240,6 +240,7 @@ function initFirebaseSync() {
         });
 
         // Smart merge locally added custom subtasks so they are never lost
+        let needsDbSync = false;
         if (categories && categories.length > 0) {
           categories.forEach(lCat => {
             const rCat = catArray.find(r => r.id === lCat.id);
@@ -247,14 +248,43 @@ function initFirebaseSync() {
               lCat.subcategories.forEach(lSub => {
                 if (!rCat.subcategories.some(rSub => rSub.id === lSub.id || rSub.name === lSub.name)) {
                   rCat.subcategories.push(lSub);
+                  needsDbSync = true;
                 }
               });
             }
           });
         }
 
+        // Also merge DEFAULT_CATEGORIES into remote categories
+        DEFAULT_CATEGORIES.forEach(defCat => {
+          const rCat = catArray.find(r => r.id === defCat.id);
+          if (rCat && defCat.subcategories) {
+            defCat.subcategories.forEach(defSub => {
+              const existingSub = rCat.subcategories.find(rSub => rSub.id === defSub.id || rSub.name === defSub.name);
+              if (!existingSub) {
+                if (defSub.id === 'mutation_app') {
+                  const oldMut = rCat.subcategories.find(s => s.id === 'mutation_app' || s.name === 'মিউটেশন আবেদন');
+                  if (oldMut) {
+                    oldMut.name = defSub.name;
+                    needsDbSync = true;
+                    return;
+                  }
+                }
+                rCat.subcategories.push(defSub);
+                needsDbSync = true;
+              } else if (defSub.id === 'mutation_app' && existingSub.name !== defSub.name) {
+                existingSub.name = defSub.name;
+                needsDbSync = true;
+              }
+            });
+          }
+        });
+
         categories = catArray;
         saveCategories(categories);
+        if (needsDbSync && firebaseDb) {
+          firebaseDb.ref('tracker_state/categories').set(categories);
+        }
         renderContextTabs();
         renderSubtasks();
         renderCategoryManager();

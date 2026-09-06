@@ -6,7 +6,10 @@ const DEFAULT_CATEGORIES = [
     icon: '🏪',
     color: '#3b82f6', // blue
     subcategories: [
-      { id: 'mutation_app', name: 'মিউটেশন আবেদন', icon: '📝', type: 'deep_work' },
+      { id: 'mutation_app', name: 'মিউটেশন নামজারি', icon: '📝', type: 'deep_work' },
+      { id: 'ldtax', name: 'ভূমি উন্নয়ন কর', icon: '🌾', type: 'deep_work' },
+      { id: 'dcr_fee_pay', name: 'ডিসিআর ফি প্রদান', icon: '💳', type: 'work' },
+      { id: 'khajna_online', name: 'অনলাইন খাজনা / দাখিলা', icon: '🌐', type: 'shallow_work' },
       { id: 'deed_drafting', name: 'দলিল / মিসকেস ড্রাফটিং', icon: '📜', type: 'deep_work' },
       { id: 'client_deal', name: 'কাস্টমার ডিল ও পরামর্শ', icon: '👥', type: 'communication' },
       { id: 'photocopy_online', name: 'ফটোকপি ও অনলাইন সার্ভিস', icon: '🖨️', type: 'shallow_work' },
@@ -82,6 +85,7 @@ const DEFAULT_CATEGORIES = [
     icon: '🏠',
     color: '#10b981', // emerald
     subcategories: [
+      { id: 'washroom_bath', name: 'ওয়াশরুম ও গোসল', icon: '🚿', type: 'routine' },
       { id: 'ai_learning', name: 'এআই লার্নিং ও অ্যাসাইনমেন্ট', icon: '💻', type: 'deep_work' },
       { id: 'night_reading', name: 'বই পড়া ও স্টাডি', icon: '📖', type: 'deep_work' },
       { id: 'family_relax', name: 'ফ্যামিলি টাইম ও গল্প', icon: '👨‍👩‍👧', type: 'leisure' },
@@ -109,16 +113,26 @@ function loadCategories() {
     try {
       let parsed = JSON.parse(saved);
       if (Array.isArray(parsed)) {
-        // নতুন ডিফল্ট ক্যাটাগরিগুলো (যেমন food, parenting, screen, sleep, namaz) যুক্ত থাকলে মার্জ করবে
+        // নতুন ডিফল্ট ক্যাটাগরি ও সাব-টাস্কগুলো মার্জ করবে
         DEFAULT_CATEGORIES.forEach(defCat => {
           const existing = parsed.find(c => c.id === defCat.id);
           if (!existing) {
             parsed.push(defCat);
           } else {
-            // যদি ডিফল্ট ক্যাটাগরিতে নতুন কোনো সাব-টাস্ক যুক্ত হয়ে থাকে, তাও যুক্ত করে নিবে
             defCat.subcategories.forEach(defSub => {
-              if (!existing.subcategories.some(s => s.id === defSub.id || s.name === defSub.name)) {
+              const existingSub = existing.subcategories.find(s => s.id === defSub.id || s.name === defSub.name);
+              if (!existingSub) {
+                // মিউটেশন নামজারি পুরনো 'মিউটেশন আবেদন' থাকলে নাম আপডেট করবে
+                if (defSub.id === 'mutation_app') {
+                  const oldMut = existing.subcategories.find(s => s.id === 'mutation_app' || s.name === 'মিউটেশন আবেদন');
+                  if (oldMut) {
+                    oldMut.name = defSub.name;
+                    return;
+                  }
+                }
                 existing.subcategories.push(defSub);
+              } else if (defSub.id === 'mutation_app' && existingSub.name !== defSub.name) {
+                existingSub.name = defSub.name;
               }
             });
           }
