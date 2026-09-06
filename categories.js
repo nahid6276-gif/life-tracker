@@ -14,7 +14,8 @@ const DEFAULT_CATEGORIES = [
       { id: 'client_deal', name: 'কাস্টমার ডিল ও পরামর্শ', icon: '👥', type: 'communication' },
       { id: 'photocopy_online', name: 'ফটোকপি ও অনলাইন সার্ভিস', icon: '🖨️', type: 'shallow_work' },
       { id: 'accounts_cash', name: 'হিসাব-নিকাশ ও ক্যাশ মেলানো', icon: '💰', type: 'admin' },
-      { id: 'shop_maintenance', name: 'দোকান খোলা ও গোছানো', icon: '🧹', type: 'routine' }
+      { id: 'shop_maintenance', name: 'দোকান খোলা ও গোছানো', icon: '🧹', type: 'routine' },
+      { id: 'shop_closing', name: 'দোকান গোছানো ও দোকান বন্ধ', icon: '🔒', type: 'routine' }
     ]
   },
   {
