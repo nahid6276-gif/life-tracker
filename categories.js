@@ -87,6 +87,7 @@ const DEFAULT_CATEGORIES = [
     color: '#10b981', // emerald
     subcategories: [
       { id: 'washroom_bath', name: 'ওয়াশরুম ও গোসল', icon: '🚿', type: 'routine' },
+      { id: 'one_line_class', name: 'One-line class', icon: '💻', type: 'deep_work' },
       { id: 'ai_learning', name: 'এআই লার্নিং ও অ্যাসাইনমেন্ট', icon: '💻', type: 'deep_work' },
       { id: 'night_reading', name: 'বই পড়া ও স্টাডি', icon: '📖', type: 'deep_work' },
       { id: 'family_relax', name: 'ফ্যামিলি টাইম ও গল্প', icon: '👨‍👩‍👧', type: 'leisure' },
